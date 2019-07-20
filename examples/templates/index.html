@@ -1,17 +1,18 @@
 {% extends 'base.html' %}
 
 {% block content %}
-    <h1>Twitter Searcher</h1>
-<ul>
-    <form action="" method="POST" class="form-inline">
-        <div class="row">
-            <div class="col-md-12">
-                <div class="form-group row">
-                    <input type="text" class="form-control mr-4">
-                    <button class="btn btn-primary">Search</button>
+    <h1 style="margin-left:800px; margin-top:300px; ">Twitter Searcher</h1>
+    <ul style="margin-left:770px; margin-top:50px;">
+        <form action="/search" method="POST" class="form-inline">
+            <div class="row">
+                <div class="col-md-12">
+                    <div class="form-group row">
+                        <input type="text" class="form-control mr-4" name="query">
+                        <button class="btn btn-primary">Search</button>
+                    </div>
                 </div>
             </div>
-        </div>
-    </form>
-</ul>
+        </form>
+    </ul>
+
 {% endblock %}
