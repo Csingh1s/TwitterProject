@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 import requests
 import json
+import urllib
+
+from datetime import datetime
 
 from flask import Flask, render_template, request
+from flask import session
 
 from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField, BooleanField, PasswordField
@@ -10,10 +14,12 @@ from wtforms.validators import DataRequired, Length
 
 from flask_bootstrap import Bootstrap
 from flask_sqlalchemy import SQLAlchemy
-
+from flask_sqlalchemy import *
 import tweepy
 
 app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://admin:admin@localhost/tweeter'
+
 app.secret_key = 'dev'
 
 bootstrap = Bootstrap(app)
@@ -24,6 +30,22 @@ consumerSecret = "fyP8qzUgZEyhG9rjII1AWecuC6KUG8OgEFoLDTOpaOIgj8Zymg"
 accessToken = "1151510140362854403-BttX7aXPLQQxbRl2UcSFRcLDpVj1lK"
 accessTokenKey = "3VtIebPaaQEWsXNl4NdckXFQKfGnNswSxpUTunYvqkOyt"
 
+auth = tweepy.OAuthHandler(consumerKey, consumerSecret)
+auth.set_access_token(accessToken, accessTokenKey)
+api = tweepy.API(auth)
+
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+class Query(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    query = db.Column(db.String(300), nullable=True)
+    time = db.Column(db.DateTime, nullable=True, default=datetime.now())
+
+for i in range(1000):
+    m = Message()
+    db.session.add(m)
+db.session.commit()
 
 
 class HelloForm(FlaskForm):
@@ -31,11 +53,6 @@ class HelloForm(FlaskForm):
     password = PasswordField('Password', validators=[DataRequired(), Length(8, 150)])
     remember = BooleanField('Remember me')
     submit = SubmitField()
-
-
-class Message(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -65,9 +82,6 @@ def test_pagination():
     page = request.args.get('page', 1, type=int)
     pagination = Message.query.paginate(page, per_page=10)
     messages = pagination.items
-    #messages = [
-    #    {"id" : 1},
-    #]
     return render_template('pagination.html', pagination=pagination, messages=messages)
 
 
@@ -79,39 +93,59 @@ def test_utils():
 @app.route('/search', methods=['GET', 'POST'])
 def search():
     try:
-        auth = tweepy.OAuthHandler(consumerKey, consumerSecret)
-        auth.set_access_token(accessToken, accessTokenKey)
-        api = tweepy.API(auth)
+        page = request.args.get('page', 1, type=int)
+        pagination = Message.query.paginate(page, per_page=50)
+        messages = []
+
+        # ================== log query ================== #
+        if "query" in request.form:
+            session["query"] = request.form["query"]
+            query = request.form["query"]
+        elif "query" not in request.form and session.get("query") != None:
+            query = session.get("query")
+        else:
+            return render_template('pagination.html', pagination=pagination, messages=[])
+
+        q = Query()
+        q.query = query
+        db.session.add(q)
+        db.session.commit()
 
         # ================== get tweets ================= #
-        tweets = []
-        i = 0
-        sinceId = 0
-        query = "hello"
-        tweets_original = api.search(q = query, count = 100, result_type = "recent")
-        if len(tweets_original) == 0:
-            return render_template('index.html')
-        maxId = tweets_original[0].id
+        if session.get(str(page)) == None and page == 1:
+            maxId = 99999999999999999999
+        elif session.get(str(page)) == None and page != 1:
+            maxId = session.get(str(page - 1))["sinceId"] - 1
+        else:
+            maxId = session.get(str(page))["maxId"]
 
+        tweets = []
         flag = False
         while (1):
-            tweets_original = api.search(q = query, count = 100, max_id = maxId)
+            tweets_original = api.search(q=query, count=100, max_id=maxId, lang="en")
             if len(tweets_original) == 0:
                 break
             for tweet in tweets_original:
                 tweets.append(
                     {
-                        "created_at" : str(tweet.created_at),
-                        "text" : tweet.text
+                        "id" : tweet.id,
+                        "created_at": str(tweet.created_at),
+                        "text": tweet.text
                     }
                 )
-                if len(tweets) == 1000:
+                if len(tweets) == 50:
                     flag = True
                     break
             if flag == True:
                 break
             maxId = tweets_original.since_id - 1
 
+        # ========= update session =========== #
+        if len(tweets) > 0:
+            session[str(page)] = {
+                "maxId" : tweets[0]["id"],
+                "sinceId" : tweets[len(tweets)-1]["id"],
+            }
         # ================== count every word in every tweet ================= #
         for tweet in tweets:
             stweet = tweet["text"].split()
@@ -129,7 +163,7 @@ def search():
             if len(top_words) > 10:
                 for word, cnt in tweet_words.items():
                     if word in tweet_words: continue
-                    last_word=  top_words[0]
+                    last_word = top_words[0]
                     last_idx = 0
                     i = 0
                     # ============ get word of max_words which has minimal count ========= #
@@ -146,19 +180,26 @@ def search():
             i = 0
             j = 0
             for i in range(0, len(top_words)):
-                for j in range(i+1, len(top_words)):
+                for j in range(i + 1, len(top_words)):
                     if tweet_words[top_words[i]] < tweet_words[top_words[j]]:
                         tmp = top_words[i]
                         top_words[i] = top_words[j]
                         top_words[j] = tmp
                     j += 1
                 i += 1
-            tweet["topWords"] = top_words
 
-        # =============== log query =============== #
-        query = request.form["query"]
+            i = 0
+            tweet["topWords"] = ""
+            for i in range(0, len(top_words)):
+                if i != len(top_words) - 1:
+                    tweet["topWords"] += top_words[i] + ", "
+                    continue
+                tweet["topWords"] += top_words[i]
 
-        return render_template('index.html')
+        for tweet in tweets:
+            messages.append(tweet)
+
+        return render_template('pagination.html', pagination=pagination, messages=messages)
 
     except Exception as e:
-        return render_template('index.html')
+        return render_template('pagination.html', pagination=pagination, messages=[])
