@@ -2,12 +2,35 @@
 {% from 'bootstrap/pagination.html' import render_pager, render_pagination %}
 
 {% block content %}
-    <h1>Messages</h1>
-    {% for message in messages %}
-        Message: {{ message.id }}<br>
-    {% endfor %}
-    <h1>render_pager</h1>
+    <h1 style="padding-top:50px;">Searched Tweets</h1>
+    <table style="margin-top: 50px;" class="table table-hover">
+        <thead>
+            <th style="width:10%;">Id</th>
+            <th style="width:10%;">Created Time</th>
+            <th style="width:50%;">Content</th>
+            <th style="width:30%;">Top 10 Words</th>
+        </thead>
+
+        <tbody>
+            {% for message in messages %}
+                <tr>
+                    <td>
+                    {{ message.id }}
+                    </td>
+                    <td>
+                        {{ message.created_at }}
+                    </td>
+                    <td>
+                        {{ message.text }}
+                    </td>
+                    <td>
+                        {{ message.topWords }}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
     {{ render_pager(pagination) }}
-    <h1>render_pagination</h1>
-    {{ render_pagination(pagination) }}
+{#    {{ render_pagination(pagination) }}#}
 {% endblock %}
