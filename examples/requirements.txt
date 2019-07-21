@@ -3,3 +3,4 @@ Bootstrap-Flask
 Flask-SQLAlchemy
 Flask-WTF
 tweepy
+pymysql
