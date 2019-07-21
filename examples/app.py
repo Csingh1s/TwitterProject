@@ -15,10 +15,13 @@ from wtforms.validators import DataRequired, Length
 from flask_bootstrap import Bootstrap
 from flask_sqlalchemy import SQLAlchemy
 from flask_sqlalchemy import *
+#import sqlalchemy
 import tweepy
+import os
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://admin:admin@localhost/tweeter'
+#app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql://admin:admin@localhost/tweeter'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://admin:admin@/tweeter?unix_socket=/cloudsql/tweeter-247304:us-central1:mysql'
 
 app.secret_key = 'dev'
 
@@ -34,18 +37,6 @@ auth = tweepy.OAuthHandler(consumerKey, consumerSecret)
 auth.set_access_token(accessToken, accessTokenKey)
 api = tweepy.API(auth)
 
-class Message(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-
-class Query(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    query = db.Column(db.String(300), nullable=True)
-    time = db.Column(db.DateTime, nullable=True, default=datetime.now())
-
-for i in range(1000):
-    m = Message()
-    db.session.add(m)
-db.session.commit()
 
 
 class HelloForm(FlaskForm):
@@ -97,7 +88,6 @@ def search():
         pagination = Message.query.paginate(page, per_page=50)
         messages = []
 
-        # ================== log query ================== #
         if "query" in request.form:
             session["query"] = request.form["query"]
             query = request.form["query"]
@@ -106,10 +96,7 @@ def search():
         else:
             return render_template('pagination.html', pagination=pagination, messages=[])
 
-        q = Query()
-        q.query = query
-        db.session.add(q)
-        db.session.commit()
+        topWords = ""
 
         # ================== get tweets ================= #
         if session.get(str(page)) == None and page == 1:
@@ -196,9 +183,17 @@ def search():
                     continue
                 tweet["topWords"] += top_words[i]
 
+            if topWords == "": topWords = tweet["topWords"]
+
         for tweet in tweets:
             messages.append(tweet)
 
+        # ------------ log query, top words of first tweet ----------- #
+        q = Query()
+        q.query = query
+        q.topwords = topWords
+        db.session.add(q)
+        db.session.commit()
         return render_template('pagination.html', pagination=pagination, messages=messages)
 
     except Exception as e:
