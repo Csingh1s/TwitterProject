@@ -8,4 +8,4 @@ $ pip install -r requirements.txt
 $ flask run
 Now go to http://localhost:5000.
 
-Note:- This is just frontend
+
