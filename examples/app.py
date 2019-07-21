@@ -37,6 +37,21 @@ auth = tweepy.OAuthHandler(consumerKey, consumerSecret)
 auth.set_access_token(accessToken, accessTokenKey)
 api = tweepy.API(auth)
 
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+class Query(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    query = db.Column(db.String(300), nullable=True)
+    time = db.Column(db.DateTime, nullable=True, default=datetime.now())
+    topwords = db.Column(db.String(300), nullable=True)
+
+db.drop_all()
+db.create_all()
+for i in range(1000):
+    m = Message()
+    db.session.add(m)
+db.session.commit()
 
 
 class HelloForm(FlaskForm):
